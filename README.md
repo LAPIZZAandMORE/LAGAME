@@ -3,57 +3,47 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LA PIZZA — یاری پیتزا خەندەناک</title>
+<title>Pizza Flappy Bird 🍕</title>
 <style>
-:root{
-  --bg:#0b1020;
-  --card:#0f1724;
-  --accent1:#1e90ff;
-  --accent2:#ff3b3b;
-  --muted:#9aa7bf;
-  --glass: rgba(255,255,255,0.08);
+body{margin:0;font-family:Arial,sans-serif;background:#0b1020;overflow:hidden;color:white;}
+#gameArea{position:relative;width:100%;height:600px;background:linear-gradient(to top,#07101a,#0b1020);overflow:hidden;}
+#bird{
+  position:absolute;
+  width:60px;
+  height:60px;
+  bottom:0;
+  left:50px;
+  top:200px;
+  border-radius:50%;
+  background:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
-body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:#fff;}
-.container{max-width:480px;margin:0 auto;padding:12px;}
-.play-area{position:relative;width:100%;height:400px;background:linear-gradient(180deg,#07101a,#0b1220);border-radius:12px;overflow:hidden;border:2px solid rgba(255,255,255,0.1);}
-.hud{position:absolute;top:8px;left:8px;display:flex;gap:6px;z-index:10;}
-.pill{background:var(--glass);padding:4px 8px;border-radius:999px;font-weight:600;font-size:13px;}
-.center-message{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;text-align:center;}
-.scorebig{font-size:30px;font-weight:800;}
-.input-area{margin-top:8px;}
-input, button{width:100%;padding:10px;margin-bottom:6px;border-radius:10px;border:none;font-size:16px;font-weight:600;}
-input{background:rgba(255,255,255,0.05);color:white;}
-button{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:white;cursor:pointer;}
-.pizza{position:absolute;width:60px;height:60px;user-select:none;touch-action:none;z-index:5;}
-.pizza img{width:100%;height:100%;display:block;}
-.floating{position:absolute;font-weight:800;font-size:16px;color:#ffd700;pointer-events:none;user-select:none;z-index:20;text-shadow:1px 1px 3px #000;}
-.hearts{display:flex;gap:4px;align-items:center;}
-.heart{width:20px;height:20px;background:red;clip-path: polygon(50% 0%, 61% 15%, 75% 15%, 85% 25%, 85% 40%, 75% 55%, 50% 75%, 25% 55%, 15% 40%, 15% 25%, 25% 15%, 39% 15%);}
-.card{margin-top:10px;padding:8px;background:var(--card);border-radius:12px;}
-.row{display:flex;justify-content:space-between;padding:6px;border-radius:8px;}
-.row:nth-child(odd){background:rgba(255,255,255,0.02);}
+#bird img{
+  width:100%;
+  height:100%;
+  border-radius:50%;
+}
+.pipe{position:absolute;width:60px;background:#1e90ff;}
+#hud{position:absolute;top:10px;left:10px;background:rgba(255,255,255,0.1);padding:8px;border-radius:10px;font-weight:bold;}
+#leaderboard{position:absolute;top:10px;right:10px;background:rgba(255,255,255,0.1);padding:8px;border-radius:10px;width:150px;}
+button,input{margin-top:5px;padding:8px;border-radius:10px;border:none;font-weight:bold;width:100%;}
 </style>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-<div class="container">
-  <div class="play-area" id="playArea">
-    <div class="hud">
-      <div class="pill">کات: <span id="time">60</span>s</div>
-      <div class="pill">خاڵ: <span id="score">0</span></div>
-      <div class="pill hearts" id="lives"></div>
-    </div>
-    <div class="center-message" id="centerMessage"></div>
-  </div>
-  <div class="input-area">
-    <input id="playerName" type="text" placeholder="ناوی خۆت بنووسە">
-    <button id="startBtn">دەست پێ بکە</button>
-  </div>
-  <div class="card">
-    <h4>باشترین خاڵ 🌎</h4>
-    <div id="scoreList"></div>
-  </div>
+<div id="gameArea">
+  <div id="bird"><img src="loo.jpg" alt="LA PIZZA"/></div>
+  <div id="hud">نمرە: <span id="score">0</span></div>
+  <div id="leaderboard"><b>لیستی نمرەکان</b><div id="scoreList"></div></div>
+</div>
+<div style="padding:10px;max-width:400px;margin:auto;">
+  <input type="text" id="playerName" placeholder="ناوی خۆت">
+  <button id="startBtn">دەست پێ بکە</button>
 </div>
 
 <script>
@@ -69,167 +59,113 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const SCORES_REF = db.ref('lapizza-scores');
+const SCORES_REF = db.ref('flappy-pizza-scores');
 
-// ===== Config =====
-const CONFIG = {
-  GAME_TIME:60,
-  START_LIVES:3,
-  SPAWN_INTERVAL:600,
-  MAX_ON_SCREEN:5,
-  PIZZA_SIZE:60,
-  SCORE_PER_PIZZA:100,
-  COMBO_WINDOW:1200
-};
+// ===== Game State =====
+let state={running:false,birdY:200,birdVY:0,pipes:[],score:0};
+const CONFIG={gravity:0.5,flap:-10,pipeSpeed:3,pipeGap:150,pipeInterval:2000};
+const gameArea=document.getElementById('gameArea');
+const bird=document.getElementById('bird');
+const scoreEl=document.getElementById('score');
+const scoreListEl=document.getElementById('scoreList');
 
-let state = {time:CONFIG.GAME_TIME, score:0, lives:CONFIG.START_LIVES, running:false, combo:0, lastHit:0, pizzas:new Map()};
-let pizzaId=0,spawnTimer=null,gameTimer=null,animationHandle=null;
-
-const playArea = document.getElementById('playArea');
-const timeEl = document.getElementById('time');
-const scoreEl = document.getElementById('score');
-const livesEl = document.getElementById('lives');
-const centerMessage = document.getElementById('centerMessage');
-const playerNameInput = document.getElementById('playerName');
-const scoreListEl = document.getElementById('scoreList');
-const startBtn = document.getElementById('startBtn');
-
-const PIZZA_DATA='data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><circle cx='100' cy='100' r='96' fill='#f7b733' stroke='#ff3b3b' stroke-width='8'/><circle cx='70' cy='80' r='10' fill='#a52a2a'/><circle cx='120' cy='60' r='10' fill='#a52a2a'/><circle cx='140' cy='120' r='10' fill='#a52a2a'/></svg>`);
-
-// ===== Utilities =====
+// ===== Utils =====
 function rand(min,max){return Math.random()*(max-min)+min;}
 function pushScore(name,score){SCORES_REF.push({name:name||'Anon',score:score,ts:Date.now()});}
 function listenScores(){
-  SCORES_REF.orderByChild('score').limitToLast(10).on('value',snap=>{
-    const val=snap.val()||{};
+  SCORES_REF.orderByChild('score').limitToLast(5).on('value',snap=>{
+    const val = snap.val()||{};
     const arr=Object.values(val).sort((a,b)=>b.score-a.score);
     scoreListEl.innerHTML='';
-    arr.forEach((s,i)=>{
-      const row=document.createElement('div');
-      row.className='row';
-      row.innerHTML=`<div>#${i+1} ${s.name}</div><div>${s.score} 🍕</div>`;
-      scoreListEl.appendChild(row);
-    });
+    arr.forEach((s,i)=>{scoreListEl.innerHTML+=`<div>${i+1}. ${s.name} ${s.score}</div>`});
   });
 }
 
-// ===== Game Functions =====
-function resetGame(){
-  state.time=CONFIG.GAME_TIME;
-  state.score=0;
-  state.lives=CONFIG.START_LIVES;
-  state.running=false;
-  state.combo=0;
-  state.lastHit=0;
-  timeEl.textContent=state.time;
-  scoreEl.textContent=state.score;
-  livesEl.innerHTML='';
-  for(let i=0;i<state.lives;i++){
-    const h=document.createElement('div');
-    h.className='heart';
-    livesEl.appendChild(h);
-  }
-  state.pizzas.forEach(p=>p.el.remove());
-  state.pizzas.clear();
-  centerMessage.innerHTML='';
+// ===== Pipes =====
+function spawnPipe(){
+  if(!state.running) return;
+  const topHeight=rand(50,300);
+  const bottomHeight=gameArea.offsetHeight-topHeight-CONFIG.pipeGap;
+  const topPipe=document.createElement('div');
+  topPipe.className='pipe';
+  topPipe.style.height=topHeight+'px';
+  topPipe.style.top='0px';
+  topPipe.style.left=gameArea.offsetWidth+'px';
+  gameArea.appendChild(topPipe);
+
+  const bottomPipe=document.createElement('div');
+  bottomPipe.className='pipe';
+  bottomPipe.style.height=bottomHeight+'px';
+  bottomPipe.style.top=(topHeight+CONFIG.pipeGap)+'px';
+  bottomPipe.style.left=gameArea.offsetWidth+'px';
+  gameArea.appendChild(bottomPipe);
+
+  state.pipes.push({top:topPipe,bottom:bottomPipe,passed:false});
 }
 
-function spawnPizza(){
-  if(!state.running || state.pizzas.size>=CONFIG.MAX_ON_SCREEN) return;
-  const rect=playArea.getBoundingClientRect();
-  pizzaId++;
-  const id='pz'+pizzaId;
-  const el=document.createElement('div');
-  el.className='pizza';
-  el.dataset.id=id;
-  el.innerHTML=`<img src="${PIZZA_DATA}">`;
-  const size=CONFIG.PIZZA_SIZE*(0.8+Math.random()*0.5);
-  const x=rand(10,rect.width-size-10);
-  const y=-size;
-  el.style.width=size+'px';
-  el.style.height=size+'px';
-  el.style.left=x+'px';
-  el.style.top=y+'px';
-  playArea.appendChild(el);
-  const vx=(Math.random()-0.5)*1.2;
-  const vy=rand(2,4);
-  state.pizzas.set(id,{id,el,x,y,vx,vy,size});
-  el.addEventListener('pointerdown',()=>{hitPizza(id);});
-}
-
-function hitPizza(id){
-  const p=state.pizzas.get(id);
-  if(!p) return;
-  const now=Date.now();
-  state.combo=now-state.lastHit<=CONFIG.COMBO_WINDOW?state.combo+1:1;
-  state.lastHit=now;
-  const gained=Math.round(CONFIG.SCORE_PER_PIZZA*(1+(state.combo-1)*0.4));
-  state.score+=gained;
-  scoreEl.textContent=state.score;
-
-  const funnyMsgs=['🍕 هەڵچوون!','🧀 پیتزا چاوی!','🤣 پیتزا فڕۆ!','😋 دەمەوێت بخورم!'];
-  const msg=funnyMsgs[Math.floor(Math.random()*funnyMsgs.length)];
-
-  const f=document.createElement('div');
-  f.className='floating';
-  f.textContent=`+${gained} ${msg}`;
-  f.style.left=(p.x+30)+'px';
-  f.style.top=(p.y)+'px';
-  playArea.appendChild(f);
-  f.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}],{duration:900,easing:'ease-out'});
-  setTimeout(()=>f.remove(),900);
-
-  p.el.remove();
-  state.pizzas.delete(id);
-}
-
+// ===== Game Loop =====
 function tick(){
   if(!state.running) return;
-  const rect=playArea.getBoundingClientRect();
-  state.pizzas.forEach(p=>{
-    p.y+=p.vy;
-    p.x+=p.vx;
-    p.el.style.left=p.x+'px';
-    p.el.style.top=p.y+'px';
-    p.el.style.transform=`rotate(${p.vx*20}deg)`;
-    if(p.y>rect.height-30){
-      p.el.remove();
-      state.pizzas.delete(p.id);
-      state.lives--;
-      livesEl.innerHTML='';
-      for(let i=0;i<state.lives;i++){const h=document.createElement('div');h.className='heart';livesEl.appendChild(h);}
-      if(state.lives<=0) endGame();
+  state.birdVY+=CONFIG.gravity;
+  state.birdY+=state.birdVY;
+  if(state.birdY<0) state.birdY=0;
+  if(state.birdY>gameArea.offsetHeight-60) state.birdY=gameArea.offsetHeight-60;
+  bird.style.top=state.birdY+'px';
+
+  state.pipes.forEach((p,i)=>{
+    const left=parseFloat(p.top.style.left);
+    p.top.style.left=(left-CONFIG.pipeSpeed)+'px';
+    p.bottom.style.left=(left-CONFIG.pipeSpeed)+'px';
+
+    const bRect=bird.getBoundingClientRect();
+    const topRect=p.top.getBoundingClientRect();
+    const bottomRect=p.bottom.getBoundingClientRect();
+
+    if(!(bRect.right<topRect.left||bRect.left>topRect.right||bRect.bottom<topRect.top||bRect.top>topRect.bottom) ||
+       !(bRect.right<bottomRect.left||bRect.left>bottomRect.right||bRect.bottom<bottomRect.top||bRect.top>bottomRect.bottom)){
+      endGame();
     }
+
+    if(!p.passed && left+60<50){
+      state.score++;
+      scoreEl.textContent=state.score;
+      p.passed=true;
+    }
+
+    if(left+60<0){p.top.remove();p.bottom.remove();state.pipes.splice(i,1);}
   });
+
+  requestAnimationFrame(tick);
 }
 
-function startGame(){
-  if(!playerNameInput.value){playerNameInput.focus();return;}
-  resetGame();
-  state.running=true;
-  spawnTimer=setInterval(spawnPizza,CONFIG.SPAWN_INTERVAL);
-  gameTimer=setInterval(()=>{
-    state.time--;
-    timeEl.textContent=state.time;
-    if(state.time<=0) endGame();
-  },1000);
-  animationHandle=setInterval(tick,30);
-  centerMessage.innerHTML='<div class="scorebig">بڕۆ! 🍕</div>';
-  setTimeout(()=>{centerMessage.innerHTML='';},1000);
-}
+// ===== Flap =====
+function flap(){state.birdVY=CONFIG.flap;}
+document.addEventListener('keydown',e=>{if(e.key===' ') flap();});
+document.addEventListener('touchstart',flap);
 
+// ===== End Game =====
 function endGame(){
   state.running=false;
-  clearInterval(spawnTimer);
-  clearInterval(gameTimer);
-  clearInterval(animationHandle);
-  pushScore(playerNameInput.value,state.score);
-  const funnyEnds=['😢 پیتزا سڕایەوە!','😂 بۆچی پیتزا فڕۆ؟','🍕 ڕێگە بۆ خاڵ زیاد نەبوو!'];
-  const msg=funnyEnds[Math.floor(Math.random()*funnyEnds.length)];
-  centerMessage.innerHTML=`<div class="scorebig">یاری کۆتایی هات</div><div>${state.score} خاڵ ${msg}</div>`;
+  alert('کۆتایی یاری! نمرە: '+state.score);
+  const name=document.getElementById('playerName').value;
+  pushScore(name,state.score);
 }
 
-startBtn.addEventListener('click',()=>{startGame();});
+// ===== Start Game =====
+document.getElementById('startBtn').addEventListener('click',()=>{
+  const name=document.getElementById('playerName');
+  if(!name.value){name.focus();return;}
+  state.birdY=200;
+  state.birdVY=0;
+  state.pipes.forEach(p=>{p.top.remove();p.bottom.remove();});
+  state.pipes=[];
+  state.score=0;
+  scoreEl.textContent='0';
+  state.running=true;
+  requestAnimationFrame(tick);
+  setInterval(spawnPipe,CONFIG.pipeInterval);
+});
+
 listenScores();
 </script>
 </body>
